@@ -12,18 +12,11 @@ const VALID_PHONE_REGEX = /^09\d{8}$/;
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 const jwt = require('jsonwebtoken');
 
-const PRIVATE_KEY_IN_PEM = `
------BEGIN EC PRIVATE KEY-----
-MHcCAQEEIFamQMQ/56tZuX6sZQBzxxs4EbH9ndELv14JMo6fkfR0oAoGCCqGSM49
-AwEHoUQDQgAE09zpUSJToy6M+FWWGQUatRLpUot2314yuBLEZ2XfDhNtEqsqpJ1a
-bFpzTyPzIa0JE/MULNEx0rjnia3FntuoiA==
------END EC PRIVATE KEY-----
-`
-
 const GATEWAY_MERCHANT_ID = "27dcd443-1e6f-46d0-8cc3-5918b333dc2b";
-const notifyUrl = "https://next-ludo-socket.onrender.com/api/callback/verify-transaction";
-const notifyUrlTwo = "https://next-ludo-socket.onrender.com/api/callback/verify-transaction-two";
-const client = new SantimpaySdk(GATEWAY_MERCHANT_ID, PRIVATE_KEY_IN_PEM);
+
+const notifyUrl = "https://next-games-backend.onrender.com/api/callback/verify-transaction";
+const notifyUrlTwo = "https://next-games-backend.onrender.com/api/callback/verify-transaction-two";
+const client = new SantimpaySdk(GATEWAY_MERCHANT_ID, process.env.PRIVATE_KEY_IN_PEM);
  
 const getValidInput = async (bot, chatId, prompt, validator) => {
   while (true) {
@@ -84,8 +77,7 @@ const validateUserInput = {
 
 // Command handlers
 const commandHandlers = {
-  sendMainMenu: async (chatId) => {
-    // const imagePath = path.join(__dirname, 'menu.jpg');
+  sendMainMenu: async (chatId) => { 
     await errorHandler(async () => {
       const rulePath = path.join(__dirname, 'menu.jpg');
       const token = jwt.sign(
@@ -160,10 +152,7 @@ const commandHandlers = {
         await user.save();
 
         // Send all tutorial images sequentially
-        const rulePath = path.join(__dirname, 'rule.jpg');
-        const tut1Path = path.join(__dirname, 'tut1.jpg');
-        const tut2Path = path.join(__dirname, 'tut2.jpg');
-        const tut3Path = path.join(__dirname, 'tut3.jpg');
+        const rulePath = path.join(__dirname, 'rule.jpg'); 
 
         await bot.sendPhoto(chatId, tut1Path, {
           caption: `${username} ምዝገባ ተሳክቶአል መጫወት ይችላሉ /deposit`
@@ -845,10 +834,7 @@ bot.onText(/\/start(.+)?/, async (msg, match) => {
       // Welcome message
 
       // Send all tutorial images sequentially
-      const rulePath = path.join(__dirname, 'rule.jpg');
-      const tut1Path = path.join(__dirname, 'tut1.jpg');
-      const tut2Path = path.join(__dirname, 'tut2.jpg');
-      const tut3Path = path.join(__dirname, 'tut3.jpg');
+      const rulePath = path.join(__dirname, 'rule.jpg'); 
 
       await bot.sendPhoto(chatId, tut1Path, {
         caption: `${msg.from.username} ምዝገባ ተሳክቶአል መጫወት ይችላሉ /deposit`
