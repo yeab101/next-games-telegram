@@ -1,22 +1,29 @@
+require("dotenv").config();
 const TelegramBot = require("node-telegram-bot-api");
 const User = require("../models/User.js");
 const path = require('path');
 const Finance = require('../models/financeModel.js');
-const SantimpaySdk = require("../lib/index.js");
-const Game = require('../models/Game.js');
+const SantimpaySdk = require("../lib/index.js"); 
 
 // Constants
 const BOT_TOKEN = process.env.TELEGRAMBOTTOKEN;
-const BASE_URL = "https://next-ludo-frontend.vercel.app";
+const BASE_URL = "https://next-games-frontend.vercel.app";
 const VALID_PHONE_REGEX = /^09\d{8}$/;
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 const jwt = require('jsonwebtoken');
 
 const GATEWAY_MERCHANT_ID = "27dcd443-1e6f-46d0-8cc3-5918b333dc2b";
+const PRIVATE_KEY_IN_PEM = `
+-----BEGIN EC PRIVATE KEY-----
+MHcCAQEEIFamQMQ/56tZuX6sZQBzxxs4EbH9ndELv14JMo6fkfR0oAoGCCqGSM49
+AwEHoUQDQgAE09zpUSJToy6M+FWWGQUatRLpUot2314yuBLEZ2XfDhNtEqsqpJ1a
+bFpzTyPzIa0JE/MULNEx0rjnia3FntuoiA==
+-----END EC PRIVATE KEY-----
+`
 
 const notifyUrl = "https://next-games-backend.onrender.com/api/callback/verify-transaction";
 const notifyUrlTwo = "https://next-games-backend.onrender.com/api/callback/verify-transaction-two";
-const client = new SantimpaySdk(GATEWAY_MERCHANT_ID, process.env.PRIVATE_KEY_IN_PEM);
+const client = new SantimpaySdk(GATEWAY_MERCHANT_ID, PRIVATE_KEY_IN_PEM);
  
 const getValidInput = async (bot, chatId, prompt, validator) => {
   while (true) {
@@ -100,13 +107,6 @@ const commandHandlers = {
             [
               { text: "Transactions 📜", callback_data: "transactions" },
               { text: "Balance 💰", callback_data: "balance" }
-            ],
-            [
-              { text: "How To Play", web_app: { url: `${BASE_URL}/tutorial` } },
-              { text: "Contact Us", url: "https://t.me/nxt_ld" }
-            ],
-            [
-              { text: "Join Group", url: "https://t.me/nextludosupport" }
             ]
           ]
         }
@@ -151,24 +151,8 @@ const commandHandlers = {
         const user = new User({ chatId, phoneNumber, username });
         await user.save();
 
-        // Send all tutorial images sequentially
-        const rulePath = path.join(__dirname, 'rule.jpg'); 
-
-        await bot.sendPhoto(chatId, tut1Path, {
-          caption: `${username} ምዝገባ ተሳክቶአል መጫወት ይችላሉ /deposit`
-        });
-
-        await bot.sendPhoto(chatId, tut2Path, {
-          caption: "Step 1: Getting Started"
-        });
-
-        await bot.sendPhoto(chatId, tut3Path, {
-          caption: "Step 2: Game Rules"
-        });
-
-        await bot.sendPhoto(chatId, rulePath, {
-          caption: "Step 3: Winning & Rewards\n\nYou're all set! Click Play to start."
-        });
+        
+        const rulePath = path.join(__dirname, 'rule.jpg');  
 
       }, chatId, "ምዝገባው አልተሳካም ድጋሚ ይክሩ.");
     });
@@ -213,13 +197,19 @@ const commandHandlers = {
     }
   },
   withdraw: async (chatId) => {
-    const session = await User.startSession();
+    // return;
+    if (chatId !== 1982046925) {
+      return;
+    }
+    let session;
     try {
+      session = await User.startSession();
       session.startTransaction();
 
       const user = await User.findOne({ chatId }).session(session);
       if (!user) {
         await bot.sendMessage(chatId, "❌ Please register first to withdraw funds.");
+        await session.abortTransaction();
         return;
       }
 
@@ -232,6 +222,7 @@ const commandHandlers = {
 
       if (user.banned) {
         await bot.sendMessage(chatId, "Under review @nxt_ld.");
+        await session.abortTransaction();
         return;
       }
       // Balance check for exact amount
@@ -240,35 +231,7 @@ const commandHandlers = {
         await session.abortTransaction();
         return;
       }
-
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-
-      // Get total completed games
-      const completedGames = await Game.countDocuments({
-        'players.userId': chatId.toString(),
-        'status': 'completed'
-      });
-
-      // Get games played in last 24 hours
-      const recentGames = await Game.countDocuments({
-        'players.userId': chatId.toString(),
-        'status': 'completed',
-        'updatedAt': { $gte: twentyFourHoursAgo }
-      });
-
-      // Check both conditions
-      if (completedGames < 3) {
-        await bot.sendMessage(
-          chatId,
-          "❌ገንዘብ ከማውጣቶ በፊት ቢያንስ 3 ጨዋታዎችን ማጠናቀቅ አለቦት።\n" +
-          `እስካሁን ${completedGames} ጨዋታዎችን ትጫውተዋል።`
-        );
-        await session.abortTransaction();
-        return;
-      }
-
-      await bot.sendMessage(7523083089, `@${user.username} is trying to withdraw with initial ${user.balance} birr  `);
-
+      
       const paymentMethod = await new Promise((resolve, reject) => {
         const messageOptions = {
           reply_markup: {
@@ -314,7 +277,10 @@ const commandHandlers = {
       }
 
       const accountNumber = await getValidInput(bot, chatId, accountPrompt, validator);
-      if (!accountNumber) return;
+      if (!accountNumber) {
+        await session.abortTransaction();
+        return;
+      }
 
       // NEW FORMATTING LOGIC
       const formattedAccount = accountNumber.replace(/^0/, '+251');
@@ -324,9 +290,12 @@ const commandHandlers = {
         bot,
         chatId,
         "💰 ለማውጣት የፈለጉትን ብር መጠን ያስገቡ (30 ብር - 1000 ብር):",
-        (text) => parseFloat(text) >= 30 && parseFloat(text) <= 1000
+        (text) => parseFloat(text) >= 30 && parseFloat(text) <= 20000
       );
-      if (!amount) return;
+      if (!amount) {
+        await session.abortTransaction();
+        return;
+      }
 
       // Move game check BEFORE balance deduction:
       if (user.balance < parseFloat(amount)) {
@@ -355,15 +324,16 @@ const commandHandlers = {
         transactionNew.save({ session }),
         user.save({ session })
       ]);
+
+      // Commit the transaction before proceeding with external operations
       await session.commitTransaction();
+      session = null; // Clear session after commit
 
       // NEW CONDITIONAL APPROVAL LOGIC
-      if (amount > 301) {
+      if (amount > 20000) {
         const adminMessage = `🔄 Withdraw Request from @${user.username || chatId}
 💰 Amount: ${amount} Birr
 💸 New Balance: ${user.balance} Birr
-🎮 Total Completed Games: ${completedGames}
-🕒 Games in last 24h: ${recentGames}
 📱 Phone: ${formattedAccount}
 📄 TXID: ${id}`;
 
@@ -397,15 +367,19 @@ const commandHandlers = {
         await bot.sendMessage(7523083089, `✅ ${amount} birr Withdraw for @${user.username}  ${formattedAccount} successful TXID: ${id}`);
         await bot.sendMessage(923117728, `✅ ${amount} birr Withdraw for @${user.username}  ${formattedAccount} successful TXID: ${id}`);
         await bot.sendMessage(751686391, `✅ ${amount} birr Withdraw for @${user.username}  ${formattedAccount} successful TXID: ${id}`);
-        await bot.sendMessage(415285189, `✅ ${amount} birr Withdraw for @${user.username}  ${formattedAccount} Wsuccessful TXID: ${id}`);
+        await bot.sendMessage(415285189, `✅ ${amount} birr Withdraw for @${user.username}  ${formattedAccount} successful TXID: ${id}`);
       }
 
     } catch (error) {
-      await session.abortTransaction();
+      if (session) {
+        await session.abortTransaction();
+      }
       console.error("Withdrawal Error:", error);
       await bot.sendMessage(chatId, "⚠️ Withdrawal processing error");
     } finally {
-      session.endSession();
+      if (session) {
+        await session.endSession();
+      }
     }
   },
 
@@ -835,25 +809,9 @@ bot.onText(/\/start(.+)?/, async (msg, match) => {
 
       // Send all tutorial images sequentially
       const rulePath = path.join(__dirname, 'rule.jpg'); 
+ 
 
-      await bot.sendPhoto(chatId, tut1Path, {
-        caption: `${msg.from.username} ምዝገባ ተሳክቶአል መጫወት ይችላሉ /deposit`
-      });
-
-      await bot.sendPhoto(chatId, tut2Path, {
-        caption: "Step 1: Getting Started"
-      });
-
-      await bot.sendPhoto(chatId, tut3Path, {
-        caption: "Step 2: Game Rules"
-      });
-
-      await bot.sendPhoto(chatId, rulePath, {
-        caption: "Step 3: Winning & Rewards\n\nYou're all set! Click Play to start."
-      });
-
-    }
-    await bot.sendMessage(chatId, "✅ Registration ተሳክቶአል፡፡  /deposit በማድረግ ይጫወቱ! ");
+    } 
     await commandHandlers.sendMainMenu(chatId);
 
 
