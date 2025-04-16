@@ -12,37 +12,6 @@ const VALID_PHONE_REGEX = /^09\d{8}$/;
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 const jwt = require('jsonwebtoken');
 
-// Rate limiting configuration
-const RATE_LIMIT_WINDOW = 1 * 60 * 1000; // 5 minutes in milliseconds
-const commandCooldowns = new Map();
-
-// Rate limiting utility functions
-const isRateLimited = (chatId, command) => {
-  const key = `${chatId}:${command}`;
-  const lastUsed = commandCooldowns.get(key);
-  const now = Date.now();
-
-  if (lastUsed && now - lastUsed < RATE_LIMIT_WINDOW) {
-    const timeLeft = Math.ceil((RATE_LIMIT_WINDOW - (now - lastUsed)) / 1000 / 60);
-    return timeLeft;
-  }
-
-  commandCooldowns.set(key, now);
-  return false;
-};
-
-const cleanupOldCooldowns = () => {
-  const now = Date.now();
-  for (const [key, timestamp] of commandCooldowns.entries()) {
-    if (now - timestamp > RATE_LIMIT_WINDOW) {
-      commandCooldowns.delete(key);
-    }
-  }
-};
-
-// Cleanup old cooldowns every 10 minutes
-setInterval(cleanupOldCooldowns, 10 * 60 * 1000);
-
 const GATEWAY_MERCHANT_ID = "27dcd443-1e6f-46d0-8cc3-5918b333dc2b";
 const PRIVATE_KEY_IN_PEM = `
 -----BEGIN EC PRIVATE KEY-----
@@ -113,22 +82,6 @@ const validateUserInput = {
   username: (username) => Boolean(username),
 };
 
-const SUPPORT_QUESTIONS = {
-  "1": "ገንዘብ አስገብቼ ግን አልገባልኝም ?",
-  "2": "ገንዘብ ወደ ቴሌብር ልኬ አልደረሰኝም ?",
-  "3": "በጨዋታ መሀል ተጨዋች ጥሎ ከወጣ ?",
-  "4": "አንዴት ልጫወት ? ",
-  "5": "በጨዋታ መሀል ቀጥ ብሎ ከቆመ ?",
-};
-
-const SUPPORT_RESPONSES = {
-  "1": `ውድ ደንበኛችን ገንዘብ ሲያስገቡ የተላከሎትን መልክት ኮፒ በማረግ በዚ አካውንት ይላኩልን.`,
-  "2": `የተላከ ገንዘብ በተለመደው ከ30-40 ደቂቃዎች ውስጥ መድረስ አለበት። ካልደረሰ፣ አለመግባቱን ያረጋግጡ እና ካስፈለገ የድጋፍ ቡድኑን ያነጋግሩ።`,
-  "3": `ውድ ደንበኛችን በጨዋታ መሀል ተጨዋች ጥሎ ከወጣ ከታች ያለችውን የደውል ምልክት በመንካት በ1 ደቂቃ ውስጥ ተመልሰው ካለገቡ እርሶ አሸናፊ ይሆናሉ`,
-  "4": `https://youtu.be/YtqBX4oXOWU`,
-  "5": `ውድ ደንበኛችን ጨዋታ እየተጫወቱ በመሃል ጨዋታው ከቆመ የኔትዎርክ ችግር ስለሚሆን በመጅመሪያ Refresh ማረግ አንደዛም ካልሰራሎት በመዝጋት እና ደጋሚ በመክፈት ጨዋታውን ድጋሚ መቀላቀል ይችላሉ`
-};
-
 // Command handlers
 const commandHandlers = {
   sendMainMenu: async (chatId) => { 
@@ -154,12 +107,10 @@ const commandHandlers = {
             [
               { text: "Transactions 📜", callback_data: "transactions" },
               { text: "Balance 💰", callback_data: "balance" }
-            ],
-            [
-              { text: "Customer Support 🛎️", callback_data: "support" }
             ]
           ]
         }
+
       });
     }, chatId, "Error sending main menu");
   },
@@ -219,13 +170,7 @@ const commandHandlers = {
 
   // Transaction handlers
   deposit: async (chatId) => {
-    const timeLeft = isRateLimited(chatId, 'deposit');
-      if (timeLeft) {
-        await bot.sendMessage(chatId, `❌ Please wait ${timeLeft} minutes before making another deposit request.`);
-        return;
-      }
-    try { 
-
+    try {
       const user = await User.findOne({ chatId });
       if (!user) {
         await bot.sendMessage(chatId, "❌ ብር ለማስገባት መመዝገብ አለብክ /register");
@@ -252,13 +197,10 @@ const commandHandlers = {
     }
   },
   withdraw: async (chatId) => {
-    // Check rate limit
-    const timeLeft = isRateLimited(chatId, 'withdraw');
-    if (timeLeft) {
-      await bot.sendMessage(chatId, `❌ Please wait ${timeLeft} minutes before making another withdrawal request.`);
+    // return;
+    if (chatId !== 1982046925) {
       return;
     }
-
     let session;
     try {
       session = await User.startSession();
@@ -348,7 +290,7 @@ const commandHandlers = {
         bot,
         chatId,
         "💰 ለማውጣት የፈለጉትን ብር መጠን ያስገቡ (30 ብር - 1000 ብር):",
-        (text) => parseFloat(text) >= 30 && parseFloat(text) <= 2000
+        (text) => parseFloat(text) >= 30 && parseFloat(text) <= 20000
       );
       if (!amount) {
         await session.abortTransaction();
@@ -377,7 +319,7 @@ const commandHandlers = {
         accountNumber: formattedAccount
       });
 
-      // Atomic save of both b19e and transaction
+      // Atomic save of both balance and transaction
       await Promise.all([
         transactionNew.save({ session }),
         user.save({ session })
@@ -441,7 +383,7 @@ const commandHandlers = {
     }
   },
 
-  deposit_santimpay: async (chatId) => { 
+  deposit_santimpay: async (chatId) => {
     try {
       const user = await User.findOne({ chatId });
       if (!user) {
@@ -562,7 +504,7 @@ const commandHandlers = {
       );
     }
   },
-  deposit_telebirr_direct: async (chatId) => { 
+  deposit_telebirr_direct: async (chatId) => {
     try {
       const user = await User.findOne({ chatId });
       if (!user) {
@@ -722,16 +664,6 @@ const commandHandlers = {
       });
     }, chatId, "Error sending Lucky 7 menu");
   },
-
-  support: async (chatId) => {
-    const menu = "❓ እባክዎ ጥያቄዎን ይምረጡ:\n" +
-      Object.entries(SUPPORT_QUESTIONS)
-        .map(([key, text]) => `${key}. ${text}`)
-        .join('\n') +
-      "\n\nጥያቄዎን ለመምረጥ ቁጥሩን ይጻፉ (1-5)";
-    
-    await bot.sendMessage(chatId, menu);
-  }
 };
 
 const commandMappings = {
@@ -812,8 +744,7 @@ const callbackActions = {
     } finally {
       session.endSession();
     }
-  },
-  support: commandHandlers.support
+  }
 };
 
 // Register command handlers
@@ -890,16 +821,6 @@ bot.onText(/\/start(.+)?/, async (msg, match) => {
       chatId,
       "❌ Registration failed. Please try again with /start"
     );
-  }
-});
-
-// Add message handler for support responses
-bot.on('message', (msg) => {
-  const chatId = msg.chat.id;
-  const message = msg.text.trim();
-  
-  if (/^[1-5]$/.test(message)) {
-    bot.sendMessage(chatId, SUPPORT_RESPONSES[message]);
   }
 });
 
