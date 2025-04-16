@@ -113,21 +113,7 @@ const validateUserInput = {
   username: (username) => Boolean(username),
 };
 
-const SUPPORT_QUESTIONS = {
-  "1": "ገንዘብ አስገብቼ ግን አልገባልኝም ?",
-  "2": "ገንዘብ ወደ ቴሌብር ልኬ አልደረሰኝም ?",
-  "3": "በጨዋታ መሀል ተጨዋች ጥሎ ከወጣ ?",
-  "4": "አንዴት ልጫወት ? ",
-  "5": "በጨዋታ መሀል ቀጥ ብሎ ከቆመ ?",
-};
 
-const SUPPORT_RESPONSES = {
-  "1": `ውድ ደንበኛችን ገንዘብ ሲያስገቡ የተላከሎትን መልክት ኮፒ በማረግ በዚ አካውንት ይላኩልን.`,
-  "2": `የተላከ ገንዘብ በተለመደው ከ30-40 ደቂቃዎች ውስጥ መድረስ አለበት። ካልደረሰ፣ አለመግባቱን ያረጋግጡ እና ካስፈለገ የድጋፍ ቡድኑን ያነጋግሩ።`,
-  "3": `ውድ ደንበኛችን በጨዋታ መሀል ተጨዋች ጥሎ ከወጣ ከታች ያለችውን የደውል ምልክት በመንካት በ1 ደቂቃ ውስጥ ተመልሰው ካለገቡ እርሶ አሸናፊ ይሆናሉ`,
-  "4": `https://youtu.be/YtqBX4oXOWU`,
-  "5": `ውድ ደንበኛችን ጨዋታ እየተጫወቱ በመሃል ጨዋታው ከቆመ የኔትዎርክ ችግር ስለሚሆን በመጅመሪያ Refresh ማረግ አንደዛም ካልሰራሎት በመዝጋት እና ደጋሚ በመክፈት ጨዋታውን ድጋሚ መቀላቀል ይችላሉ`
-};
 
 // Command handlers
 const commandHandlers = {
@@ -140,7 +126,7 @@ const commandHandlers = {
         { expiresIn: '7d' }
       );
       await bot.sendPhoto(chatId, rulePath, {
-        caption: "\n\nWelcome to Next Ludo!",
+        caption: "\n\nWelcome to Next Games! Home for the best multiplayer games!",
         reply_markup: {
           inline_keyboard: [
             [
@@ -154,12 +140,13 @@ const commandHandlers = {
             [
               { text: "Transactions 📜", callback_data: "transactions" },
               { text: "Balance 💰", callback_data: "balance" }
-            ],
+            ], 
             [
-              { text: "Customer Support 🛎️", callback_data: "support" }
+              { text: "Contact Us", url: "https://t.me/Sportsupprort" }, 
             ]
           ]
         }
+
       });
     }, chatId, "Error sending main menu");
   },
@@ -168,7 +155,7 @@ const commandHandlers = {
     // Check for existing user first
     const existingUser = await User.findOne({ chatId });
     if (existingUser) {
-      const rulePath = path.join(__dirname, 'rule.jpg');
+      // const rulePath = path.join(__dirname, 'rule.jpg');
       await bot.sendPhoto(chatId, rulePath, {
         caption: "ምዝገባ አጠናቀዋል! Open Lobby to play."
       });
@@ -198,10 +185,13 @@ const commandHandlers = {
         }
 
         const user = new User({ chatId, phoneNumber, username });
-        await user.save();
+        await user.save(); 
 
-        
-        const rulePath = path.join(__dirname, 'rule.jpg');  
+        await bot.sendPhoto(chatId, tut1Path, {
+          caption: `${username} ምዝገባ ተሳክቶአል መጫወት ይችላሉ /deposit`
+        });
+
+     
 
       }, chatId, "ምዝገባው አልተሳካም ድጋሚ ይክሩ.");
     });
@@ -218,14 +208,9 @@ const commandHandlers = {
   },
 
   // Transaction handlers
-  deposit: async (chatId) => {
-    const timeLeft = isRateLimited(chatId, 'deposit');
-      if (timeLeft) {
-        await bot.sendMessage(chatId, `❌ Please wait ${timeLeft} minutes before making another deposit request.`);
-        return;
-      }
-    try { 
+  deposit: async (chatId, msg) => { 
 
+    try {
       const user = await User.findOne({ chatId });
       if (!user) {
         await bot.sendMessage(chatId, "❌ ብር ለማስገባት መመዝገብ አለብክ /register");
@@ -251,23 +236,23 @@ const commandHandlers = {
       await bot.sendMessage(chatId, "❌ An error occurred. Please try again.");
     }
   },
-  withdraw: async (chatId) => {
+  withdraw: async (chatId, msg) => {
     // Check rate limit
     const timeLeft = isRateLimited(chatId, 'withdraw');
     if (timeLeft) {
+      const username = msg.from.username ? `@${msg.from.username}` : `${msg.from.first_name}`;
       await bot.sendMessage(chatId, `❌ Please wait ${timeLeft} minutes before making another withdrawal request.`);
+      await bot.sendMessage(1982046925, `User ${username} (${chatId}) attempted withdraw but needs to wait ${timeLeft} minutes before making another withdrawal request.`);
       return;
     }
 
-    let session;
+    const session = await User.startSession();
     try {
-      session = await User.startSession();
       session.startTransaction();
 
       const user = await User.findOne({ chatId }).session(session);
       if (!user) {
         await bot.sendMessage(chatId, "❌ Please register first to withdraw funds.");
-        await session.abortTransaction();
         return;
       }
 
@@ -279,8 +264,7 @@ const commandHandlers = {
       }
 
       if (user.banned) {
-        await bot.sendMessage(chatId, "Under review @nxt_ld.");
-        await session.abortTransaction();
+        await bot.sendMessage(chatId, "Under review @Sportsupprort.");
         return;
       }
       // Balance check for exact amount
@@ -288,8 +272,10 @@ const commandHandlers = {
         await bot.sendMessage(chatId, "❌ ያሎት ቀሪ ሂሳብ አነስተኛነው ");
         await session.abortTransaction();
         return;
-      }
-      
+      } 
+
+      await bot.sendMessage(6090575940, `@${user.username} is trying to withdraw with initial ${user.balance} birr  `);
+
       const paymentMethod = await new Promise((resolve, reject) => {
         const messageOptions = {
           reply_markup: {
@@ -335,10 +321,7 @@ const commandHandlers = {
       }
 
       const accountNumber = await getValidInput(bot, chatId, accountPrompt, validator);
-      if (!accountNumber) {
-        await session.abortTransaction();
-        return;
-      }
+      if (!accountNumber) return;
 
       // NEW FORMATTING LOGIC
       const formattedAccount = accountNumber.replace(/^0/, '+251');
@@ -348,12 +331,9 @@ const commandHandlers = {
         bot,
         chatId,
         "💰 ለማውጣት የፈለጉትን ብር መጠን ያስገቡ (30 ብር - 1000 ብር):",
-        (text) => parseFloat(text) >= 30 && parseFloat(text) <= 2000
+        (text) => parseFloat(text) >= 30 && parseFloat(text) <= 3000
       );
-      if (!amount) {
-        await session.abortTransaction();
-        return;
-      }
+      if (!amount) return;
 
       // Move game check BEFORE balance deduction:
       if (user.balance < parseFloat(amount)) {
@@ -365,8 +345,8 @@ const commandHandlers = {
       // Deduct balance FIRST
       user.balance -= parseFloat(amount);
 
-      // Create transaction record as PENDING
-      const id = Math.floor(Math.random() * 1000000000).toString();
+      const id = `LD-${Math.floor(Math.random() * 1000000000).toString()}`;
+      
       const transactionNew = new Finance({
         transactionId: id,
         chatId: chatId,
@@ -377,23 +357,22 @@ const commandHandlers = {
         accountNumber: formattedAccount
       });
 
-      // Atomic save of both b19e and transaction
+      // Atomic save of both balance and transaction
       await Promise.all([
         transactionNew.save({ session }),
         user.save({ session })
       ]);
-
-      // Commit the transaction before proceeding with external operations
       await session.commitTransaction();
-      session = null; // Clear session after commit
 
       // NEW CONDITIONAL APPROVAL LOGIC
-      if (amount > 20000) {
+      if (amount > 2) {
         const adminMessage = `🔄 Withdraw Request from @${user.username || chatId}
 💰 Amount: ${amount} Birr
-💸 New Balance: ${user.balance} Birr
+💸 New Balance: ${user.balance} Birr 
 📱 Phone: ${formattedAccount}
-📄 TXID: ${id}`;
+📄 TXID: ${id}
+👤 User ID: ${chatId}
+`;
 
         const approveButton = {
           inline_keyboard: [[
@@ -402,11 +381,12 @@ const commandHandlers = {
         };
         // Notify all admin channels
         await bot.sendMessage(1982046925, adminMessage, { reply_markup: approveButton });
-        await bot.sendMessage(7030407078, adminMessage, { reply_markup: approveButton });
-        await bot.sendMessage(7523083089, adminMessage, { reply_markup: approveButton });
-        await bot.sendMessage(923117728, adminMessage, { reply_markup: approveButton });
-        await bot.sendMessage(751686391, adminMessage, { reply_markup: approveButton });
-        await bot.sendMessage(415285189, adminMessage, { reply_markup: approveButton });
+        await bot.sendMessage(229044326, adminMessage, { reply_markup: approveButton });
+        await bot.sendMessage(6090575940, adminMessage, { reply_markup: approveButton });
+        // await bot.sendMessage(7030407078, adminMessage, { reply_markup: approveButton });
+        // await bot.sendMessage(923117728, adminMessage, { reply_markup: approveButton });
+        // await bot.sendMessage(751686391, adminMessage, { reply_markup: approveButton });
+        // await bot.sendMessage(415285189, adminMessage, { reply_markup: approveButton });
 
         await bot.sendMessage(chatId, "⏳ Withdrawal request sucessfull may take 1 - 5 minutes... please wait...");
       } else { 
@@ -421,27 +401,25 @@ const commandHandlers = {
         transactionNew.status = "COMPLETED";
         await transactionNew.save();
         await bot.sendMessage(1982046925, `✅ ${amount} birr Withdraw for @${user.username}  ${formattedAccount} successful TXID: ${id}`);
-        await bot.sendMessage(7030407078, `✅ ${amount} birr Withdraw for @${user.username}  ${formattedAccount} successful TXID: ${id}`);
-        await bot.sendMessage(7523083089, `✅ ${amount} birr Withdraw for @${user.username}  ${formattedAccount} successful TXID: ${id}`);
-        await bot.sendMessage(923117728, `✅ ${amount} birr Withdraw for @${user.username}  ${formattedAccount} successful TXID: ${id}`);
-        await bot.sendMessage(751686391, `✅ ${amount} birr Withdraw for @${user.username}  ${formattedAccount} successful TXID: ${id}`);
-        await bot.sendMessage(415285189, `✅ ${amount} birr Withdraw for @${user.username}  ${formattedAccount} successful TXID: ${id}`);
+        await bot.sendMessage(229044326, `✅ ${amount} birr Withdraw for @${user.username}  ${formattedAccount} successful TXID: ${id}`);
+        await bot.sendMessage(6090575940, `✅ ${amount} birr Withdraw for @${user.username}  ${formattedAccount} successful TXID: ${id}`);
+        // await bot.sendMessage(7030407078, `✅ ${amount} birr Withdraw for @${user.username}  ${formattedAccount} successful TXID: ${id}`);
+        // await bot.sendMessage(923117728, `✅ ${amount} birr Withdraw for @${user.username}  ${formattedAccount} successful TXID: ${id}`);
+        // await bot.sendMessage(751686391, `✅ ${amount} birr Withdraw for @${user.username}  ${formattedAccount} successful TXID: ${id}`);
+        // await bot.sendMessage(415285189, `✅ ${amount} birr Withdraw for @${user.username}  ${formattedAccount} Wsuccessful TXID: ${id}`);
       }
 
     } catch (error) {
-      if (session) {
+      if (session.inTransaction()) {
         await session.abortTransaction();
       }
+      session.endSession();
       console.error("Withdrawal Error:", error);
       await bot.sendMessage(chatId, "⚠️ Withdrawal processing error");
-    } finally {
-      if (session) {
-        await session.endSession();
-      }
     }
   },
 
-  deposit_santimpay: async (chatId) => { 
+  deposit_santimpay: async (chatId, msg) => { 
     try {
       const user = await User.findOne({ chatId });
       if (!user) {
@@ -518,7 +496,7 @@ const commandHandlers = {
       const cancelRedirectUrl = `${BASE_URL}/lobby/${chatId}`;
 
       const id = Math.floor(Math.random() * 1000000000).toString();
-      client.generatePaymentUrl(id, amount, "ludo-payment", successRedirectUrl, failureRedirectUrl, notifyUrl, phoneNumber, cancelRedirectUrl).then(async url => {
+      client.generatePaymentUrl(id, amount, "p2p-football-payment", successRedirectUrl, failureRedirectUrl, notifyUrl, phoneNumber, cancelRedirectUrl).then(async url => {
         try {
           await Finance.create({
             transactionId: id,
@@ -562,7 +540,8 @@ const commandHandlers = {
       );
     }
   },
-  deposit_telebirr_direct: async (chatId) => { 
+  deposit_telebirr_direct: async (chatId, msg) => {
+     
     try {
       const user = await User.findOne({ chatId });
       if (!user) {
@@ -708,29 +687,49 @@ const commandHandlers = {
       );
     }, chatId, "❌ Error fetching transactions");
   },
+ 
 
-  lucky: async (chatId) => {
-    await errorHandler(async () => {
-      await bot.sendMessage(chatId, "🍀 Try your luck with Lucky 7! 🎲", {
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: "Play Lucky 7 🎰", web_app: { url: `${BASE_URL}/lucky7/${chatId}` } }
-            ]
-          ]
-        }
-      });
-    }, chatId, "Error sending Lucky 7 menu");
-  },
+  approveTransaction: async (chatId, msg) => {
+    try {
+      const transactionId = msg.text.split(' ')[1];
+      if (!transactionId) {
+        await bot.sendMessage(chatId, "❌ Missing transaction ID. Usage: /approve TRANSACTION_ID");
+        return;
+      }
 
-  support: async (chatId) => {
-    const menu = "❓ እባክዎ ጥያቄዎን ይምረጡ:\n" +
-      Object.entries(SUPPORT_QUESTIONS)
-        .map(([key, text]) => `${key}. ${text}`)
-        .join('\n') +
-      "\n\nጥያቄዎን ለመምረጥ ቁጥሩን ይጻፉ (1-5)";
-    
-    await bot.sendMessage(chatId, menu);
+      const transaction = await Finance.findOne({ transactionId });
+      if (!transaction || transaction.status !== "PENDING_APPROVAL") {
+        await bot.sendMessage(chatId, "❌ Invalid or already processed transaction");
+        return;
+      }
+
+      const user = await User.findOne({ chatId: transaction.chatId });
+      const adminMessage = `🔄 Manual Approval Request from Admin:
+💰 Amount: ${transaction.amount} Birr
+📱 Account: ${transaction.accountNumber}
+📄 TXID: ${transactionId}`;
+
+      const approveButton = {
+        inline_keyboard: [[
+          { text: "Approve ✅", callback_data: `approve_withdraw_${transactionId}` }
+        ]]
+      };
+
+      // Resend to all admin channels
+      await bot.sendMessage(1982046925, adminMessage, { reply_markup: approveButton });
+      await bot.sendMessage(229044326, adminMessage, { reply_markup: approveButton });
+      await bot.sendMessage(6090575940, adminMessage, { reply_markup: approveButton });
+      // await bot.sendMessage(7030407078, adminMessage, { reply_markup: approveButton });
+      // await bot.sendMessage(923117728, adminMessage, { reply_markup: approveButton });
+      // await bot.sendMessage(751686391, adminMessage, { reply_markup: approveButton });
+      // await bot.sendMessage(415285189, adminMessage, { reply_markup: approveButton });
+
+      await bot.sendMessage(chatId, "✅ Approval request resent to admins");
+
+    } catch (error) {
+      console.error("Approval Error:", error);
+      await bot.sendMessage(chatId, "⚠️ Error processing approval request");
+    }
   }
 };
 
@@ -739,19 +738,18 @@ const commandMappings = {
   '/balance': 'checkBalance',
   '/deposit': 'deposit',
   '/withdraw': 'withdraw',
-  '/transactions': 'listTransactions',
-  '/lucky': 'lucky'
+  '/transactions': 'listTransactions', 
+  '/approvee': 'approveTransaction'
 };
 
 const callbackActions = {
   register: commandHandlers.register,
   balance: commandHandlers.checkBalance,
-  deposit: commandHandlers.deposit,
-  withdraw: commandHandlers.withdraw,
-  deposit_santimpay: commandHandlers.deposit_santimpay,
-  deposit_telebirr_direct: commandHandlers.deposit_telebirr_direct,
-  transactions: commandHandlers.listTransactions,
-  lucky: commandHandlers.lucky,
+  deposit: (chatId, query) => commandHandlers.deposit(chatId, query.message),
+  withdraw: (chatId, query) => commandHandlers.withdraw(chatId, query.message),
+  deposit_santimpay: (chatId, query) => commandHandlers.deposit_santimpay(chatId, query.message),
+  deposit_telebirr_direct: (chatId, query) => commandHandlers.deposit_telebirr_direct(chatId, query.message),
+  transactions: commandHandlers.listTransactions, 
   approve_withdraw: async (chatId, data) => {
     const transactionId = data.split('_')[2];
     const session = await User.startSession();
@@ -765,10 +763,7 @@ const callbackActions = {
         throw new Error('Transaction already processed');
       }
 
-      await transaction.save({ session });
-      await session.commitTransaction();
-
-      // Process payment
+      // Process payment first
       await client.sendToCustomer(
         transactionId,
         transaction.amount,
@@ -777,35 +772,32 @@ const callbackActions = {
         "Telebirr",
         notifyUrlTwo
       );
-      // Finalize transaction
+
+      // Update transaction status within transaction
       transaction.status = 'COMPLETED';
-      await transaction.save();
+      await transaction.save({ session });
+
+      // Commit the transaction after all database operations
+      await session.commitTransaction();
+
+      // Send notifications after successful commit
       await bot.sendMessage(transaction.chatId, `💵 ${transaction.amount} birr Withdraw successful TXID: ${transaction.transactionId}`);
-      // Send updated balance to admin
+      
+      // Get final balance after transaction is committed
       const finalBalance = await User.findById(user._id).select('balance');
-      await bot.sendMessage(
-        1982046925,
-        `✅ Withdraw for ${user.username} - ${transactionId} completed\nRemaining Balance: ${finalBalance.balance} Birr`
-      );
-      await bot.sendMessage(
-        923117728,
-        `✅ Withdraw for ${user.username} - ${transactionId} completed\nRemaining Balance: ${finalBalance.balance} Birr`
-      );
-      await bot.sendMessage(
-        415285189,
-        `✅ Withdraw for ${user.username} - ${transactionId} completed\nRemaining Balance: ${finalBalance.balance} Birr`
-      );
-      await bot.sendMessage(
-        751686391,
-        `✅ Withdraw for ${user.username} - ${transactionId} completed\nRemaining Balance: ${finalBalance.balance} Birr`
-      );
-      await bot.sendMessage(
-        7523083089,
-        `✅ Withdraw for ${user.username} - ${transactionId} completed\nRemaining Balance: ${finalBalance.balance} Birr`
+      
+      // Send admin notifications
+      const adminMessage = `✅ Withdraw ${transaction?.amount} for ${user.username} - ${transactionId} completed\nRemaining Balance: ${finalBalance.balance} Birr`;
+      const adminIds = [1982046925, 923117728, 415285189, 751686391, 229044326, 6090575940];
+      
+      await Promise.all(
+        adminIds.map(adminId => bot.sendMessage(adminId, adminMessage))
       );
 
     } catch (error) {
-      await session.abortTransaction();
+      if (session.inTransaction()) {
+        await session.abortTransaction();
+      }
       console.error("Approval Error:", error);
       await bot.sendMessage(1982046925, `❌ Approval failed: ${error.message}`);
       await bot.sendMessage(chatId, "⚠️ Withdrawal approval failed");
@@ -813,12 +805,12 @@ const callbackActions = {
       session.endSession();
     }
   },
-  support: commandHandlers.support
+  withdraw_telebirr: (chatId, query) => commandHandlers.withdraw(chatId, query.message),
 };
 
 // Register command handlers
 Object.entries(commandMappings).forEach(([command, handler]) => {
-  bot.onText(new RegExp(command), (msg) => commandHandlers[handler](msg.chat.id));
+  bot.onText(new RegExp(command), (msg) => commandHandlers[handler](msg.chat.id, msg));
 });
 
 // Handle callback queries
@@ -829,7 +821,7 @@ bot.on('callback_query', async (callbackQuery) => {
   }
   const handler = callbackActions[data];
   if (handler) {
-    await handler(callbackQuery.message.chat.id);
+    await handler(callbackQuery.message.chat.id, callbackQuery);
   } else {
     console.log(`Unhandled callback data: ${data}`);
   }
@@ -876,9 +868,6 @@ bot.onText(/\/start(.+)?/, async (msg, match) => {
       await newUser.save();
       // Welcome message
 
-      // Send all tutorial images sequentially
-      const rulePath = path.join(__dirname, 'rule.jpg'); 
- 
 
     } 
     await commandHandlers.sendMainMenu(chatId);
@@ -893,14 +882,9 @@ bot.onText(/\/start(.+)?/, async (msg, match) => {
   }
 });
 
-// Add message handler for support responses
-bot.on('message', (msg) => {
-  const chatId = msg.chat.id;
-  const message = msg.text.trim();
-  
-  if (/^[1-5]$/.test(message)) {
-    bot.sendMessage(chatId, SUPPORT_RESPONSES[message]);
-  }
+// Update command registration to handle parameters
+bot.onText(/\/approvee (.+)/, (msg, match) => {
+  commandHandlers.approveTransaction(msg.chat.id, msg);
 });
 
 // To disable deprecation warnings, add this at the top of your file:
