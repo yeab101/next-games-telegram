@@ -330,7 +330,7 @@ const commandHandlers = {
         bot,
         chatId,
         "💰 ለማውጣት የፈለጉትን ብር መጠን ያስገቡ (30 ብር - 1000 ብር):",
-        (text) => parseFloat(text) >= 30 && parseFloat(text) <= 3000
+        (text) => parseFloat(text) >= 30 && parseFloat(text) <= 10000
       );
       if (!amount) return;
 
