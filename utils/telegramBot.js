@@ -224,8 +224,7 @@ const commandHandlers = {
           reply_markup: {
             inline_keyboard: [
               [
-                { text: "Telebirr", callback_data: "deposit_telebirr_direct" },
-                { text: "Others", callback_data: "deposit_santimpay" }
+                { text: "Telebirr", callback_data: "deposit_telebirr_direct" } 
               ]
             ]
           }
@@ -417,129 +416,7 @@ const commandHandlers = {
       console.error("Withdrawal Error:", error);
       await bot.sendMessage(chatId, "⚠️ Withdrawal processing error");
     }
-  },
-
-  deposit_santimpay: async (chatId, msg) => { 
-    try {
-      const user = await User.findOne({ chatId });
-      if (!user) {
-        await bot.sendMessage(chatId, "❌ ዲፖዚት ለማደርግ መጀመሪያ ይመዝገቡ/register");
-        return;
-      }
-      // Collect deposit amount
-      const collectAmount = () => new Promise(async (resolve, reject) => {
-        const timeout = setTimeout(() => {
-          bot.removeListener('message', messageHandler);
-          reject(new Error('Amount input timeout'));
-        }, 120000);
-
-        const messageHandler = async (msg) => {
-          if (msg.chat.id === chatId) {
-            const amount = parseFloat(msg.text);
-            if (isNaN(amount) || amount < 20 || amount > 5000) {
-              await bot.sendMessage(chatId, "❌ የሚያስገቡት ብር ከ20 ማነስ ከ 5000 መብለጥ የለበትም: Enter amount:");
-              return;
-            }
-
-            clearTimeout(timeout);
-            bot.removeListener('message', messageHandler);
-            resolve(amount);
-          }
-        };
-
-        bot.on('message', messageHandler);
-        await bot.sendMessage(chatId, "💵 ማስገባት የፈለጉትን ብር መጠን ያስገቡ (minimum 20 - 5000 ብር):");
-      });
-
-      // Collect phone number
-      const collectPhoneNumber = () => new Promise(async (resolve, reject) => {
-        const timeout = setTimeout(() => {
-          bot.removeListener('message', messageHandler);
-          reject(new Error('Phone number timeout'));
-        }, 120000);
-
-        const messageHandler = async (msg) => {
-          if (msg.chat.id === chatId) {
-            let phone = msg.text.trim();
-
-            // Remove leading zero and add country code
-            if (phone.startsWith('0')) {
-              phone = phone.substring(1);
-            }
-            phone = `+251${phone}`;
-
-            // Validate final format
-            if (!/^\+2519\d{8}$/.test(phone)) {
-              await bot.sendMessage(chatId,
-                "❌ የኢትዮጵያ ስልክ ቁጥር ያስገቡ 09xxxxxxxx "
-              );
-              return;
-            }
-
-            clearTimeout(timeout);
-            bot.removeListener('message', messageHandler);
-            resolve(phone);
-          }
-        };
-
-        bot.on('message', messageHandler);
-        await bot.sendMessage(chatId,
-          "📱 ስልክ ቁጥር ያስገቡ"
-        );
-      });
-
-      // Execute collection flow
-      const amount = await collectAmount();
-      const phoneNumber = await collectPhoneNumber();
-      const successRedirectUrl = `${BASE_URL}/lobby/${chatId}`;
-      const failureRedirectUrl = `${BASE_URL}/lobby/${chatId}`;
-      const cancelRedirectUrl = `${BASE_URL}/lobby/${chatId}`;
-
-      const id = Math.floor(Math.random() * 1000000000).toString();
-      client.generatePaymentUrl(id, amount, "p2p-football-payment", successRedirectUrl, failureRedirectUrl, notifyUrl, phoneNumber, cancelRedirectUrl).then(async url => {
-        try {
-          await Finance.create({
-            transactionId: id,
-            chatId: chatId,
-            type: 'deposit',
-            amount: amount,
-            paymentMethod: 'SantimPay',
-            status: 'PENDING_APPROVAL',
-
-          })
-
-          await bot.sendMessage(chatId, "🔄 Click below to complete payment:", {
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: "Pay with SantimPay", web_app: { url: url } }]
-              ]
-            }
-          });
-        } catch (error) {
-          console.error("Failed to send payment button:", error);
-        }
-
-        setTimeout(() => {
-          console.log("\n\n*********************************")
-          console.log("checking for transaction...")
-
-          client.checkTransactionStatus(id).then(transaction => {
-            console.log("Transaction status response: ", transaction);
-          }).catch(error => {
-            console.error(error)
-          })
-        }, 20_000)
-      }).catch(error => {
-        console.error(error)
-      })
-    } catch (error) {
-      await bot.sendMessage(chatId,
-        error.message.includes('timeout')
-          ? "⏰ Transaction timed out"
-          : "❌ ዲፖዚት ተቋርጦአል ድጋሚ ይሞክሩ  /deposit "
-      );
-    }
-  },
+  }, 
   deposit_telebirr_direct: async (chatId, msg) => {
      
     try {
@@ -746,8 +623,7 @@ const callbackActions = {
   register: commandHandlers.register,
   balance: commandHandlers.checkBalance,
   deposit: (chatId, query) => commandHandlers.deposit(chatId, query.message),
-  withdraw: (chatId, query) => commandHandlers.withdraw(chatId, query.message),
-  deposit_santimpay: (chatId, query) => commandHandlers.deposit_santimpay(chatId, query.message),
+  withdraw: (chatId, query) => commandHandlers.withdraw(chatId, query.message), 
   deposit_telebirr_direct: (chatId, query) => commandHandlers.deposit_telebirr_direct(chatId, query.message),
   transactions: commandHandlers.listTransactions, 
   approve_withdraw: async (chatId, data) => {
