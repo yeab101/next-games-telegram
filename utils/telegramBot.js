@@ -43,14 +43,8 @@ const cleanupOldCooldowns = () => {
 // Cleanup old cooldowns every 10 minutes
 setInterval(cleanupOldCooldowns, 10 * 60 * 1000);
 
-const GATEWAY_MERCHANT_ID = "27dcd443-1e6f-46d0-8cc3-5918b333dc2b";
-const PRIVATE_KEY_IN_PEM = `
------BEGIN EC PRIVATE KEY-----
-MHcCAQEEIFamQMQ/56tZuX6sZQBzxxs4EbH9ndELv14JMo6fkfR0oAoGCCqGSM49
-AwEHoUQDQgAE09zpUSJToy6M+FWWGQUatRLpUot2314yuBLEZ2XfDhNtEqsqpJ1a
-bFpzTyPzIa0JE/MULNEx0rjnia3FntuoiA==
------END EC PRIVATE KEY-----
-`
+const GATEWAY_MERCHANT_ID = process.env.GATEWAY_MERCHANT_ID;
+const PRIVATE_KEY_IN_PEM = process.env.PRIVATE_KEY_IN_PEM
 
 const notifyUrl = "https://next-games-backend.onrender.com/api/callback/verify-transaction";
 const notifyUrlTwo = "https://next-games-backend.onrender.com/api/callback/verify-transaction-two";
